@@ -2,44 +2,72 @@ from fastapi import FastAPI, Request, Query
 from fastapi.responses import PlainTextResponse
 import json
 import logging
+import httpx  # For making API calls to WhatsApp Cloud API
 
 app = FastAPI()
 
-# Set your verification token (should match the token in Meta Developer Console)
-VERIFY_TOKEN = "123456"
+# Load environment variables (make sure you set these in your environment!)
+import os
+VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "123456")
+GRAPH_API_TOKEN = os.getenv("GRAPH_API_TOKEN", "YOUR_ACCESS_TOKEN_HERE")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
 @app.get("/webhook", response_class=PlainTextResponse)
 async def verify_webhook(
-    hub_mode: str = Query(None),
-    hub_challenge: str = Query(None),
-    hub_verify_token: str = Query(None)
+    hub_mode: str = Query(None, alias="hub.mode"),
+    hub_challenge: str = Query(None, alias="hub.challenge"),
+    hub_verify_token: str = Query(None, alias="hub.verify_token")
 ):
     """Handles Meta Webhook Verification."""
     if hub_mode == "subscribe" and hub_verify_token == VERIFY_TOKEN:
-        return hub_challenge  # Return plain text challenge
-
-    return "Invalid verification token"
+        logging.info("Webhook verified successfully!")
+        return hub_challenge  # Must be returned as raw text
+    return "Invalid verification token", 403
 
 @app.post("/webhook")
 async def receive_message(request: Request):
-    """Handles incoming messages from WhatsApp."""
+    """Handles incoming WhatsApp messages from Meta."""
     data = await request.json()
     logging.info(f"Received Webhook Data:\n{json.dumps(data, indent=2)}")
 
-    # Process WhatsApp messages
-    if "entry" in data:
-        for entry in data["entry"]:
-            for change in entry.get("changes", []):
-                if "value" in change and "messages" in change["value"]:
-                    messages = change["value"]["messages"]
-                    for message in messages:
-                        sender_id = message["from"]
-                        message_text = message["text"]["body"]
-                        logging.info(f"New message from {sender_id}: {message_text}")
+    message = data.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("messages", [{}])[0]
 
-                        # Process message further (e.g., send a reply)
+    if message and message.get("type") == "text":
+        sender_id = message["from"]
+        message_text = message["text"]["body"]
+        message_id = message["id"]
+
+        logging.info(f"New message from {sender_id}: {message_text}")
+
+        # Get business phone number ID
+        business_phone_number_id = data["entry"][0]["changes"][0]["value"]["metadata"]["phone_number_id"]
+
+        # Send a reply
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"https://graph.facebook.com/v18.0/{business_phone_number_id}/messages",
+                headers={"Authorization": f"Bearer {GRAPH_API_TOKEN}"},
+                json={
+                    "messaging_product": "whatsapp",
+                    "to": sender_id,
+                    "text": {"body": f"Echo: {message_text}"},
+                    "context": {"message_id": message_id},
+                }
+            )
+            logging.info(f"Response from WhatsApp API: {response.text}")
+
+        # Mark message as read
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://graph.facebook.com/v18.0/{business_phone_number_id}/messages",
+                headers={"Authorization": f"Bearer {GRAPH_API_TOKEN}"},
+                json={
+                    "messaging_product": "whatsapp",
+                    "status": "read",
+                    "message_id": message_id,
+                }
+            )
 
     return {"status": "received"}
