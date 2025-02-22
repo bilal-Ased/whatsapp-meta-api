@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, Query
+from fastapi.responses import PlainTextResponse
 import json
 import logging
 
@@ -10,7 +11,7 @@ VERIFY_TOKEN = "123456"
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-@app.get("/")
+@app.get("/webhook", response_class=PlainTextResponse)
 async def verify_webhook(
     hub_mode: str = Query(None),
     hub_challenge: str = Query(None),
@@ -18,11 +19,11 @@ async def verify_webhook(
 ):
     """Handles Meta Webhook Verification."""
     if hub_mode == "subscribe" and hub_verify_token == VERIFY_TOKEN:
-        return int(hub_challenge)  # Meta expects the raw integer response
+        return hub_challenge  # Return plain text challenge
 
-    return {"error": "Invalid verification token"}
+    return "Invalid verification token"
 
-@app.post("/")
+@app.post("/webhook")
 async def receive_message(request: Request):
     """Handles incoming messages from WhatsApp."""
     data = await request.json()
