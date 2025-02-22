@@ -3,6 +3,7 @@ import logging
 import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+import json
 
 app = FastAPI()
 
@@ -15,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 
 @app.post("/webhook")
 async def receive_message(request: Request):
-    """Handles incoming WhatsApp messages and logs API responses."""
+    """Handles incoming WhatsApp messages from Meta."""
     try:
         data = await request.json()
         logging.info(f"📩 Received Webhook Data:\n{json.dumps(data, indent=2)}")
@@ -53,8 +54,8 @@ async def receive_message(request: Request):
                         logging.info(f"🚀 Meta API Response: {response.status_code}")
                         logging.info(f"📄 Response Body: {response.text}")
 
-        return JSONResponse(content={"status": "received"}, status_code=200)
+        return {"status": "received"}
 
     except Exception as e:
         logging.error(f"❌ Error processing webhook: {str(e)}")
-        return JSONResponse(content={"error": "Webhook processing failed"}, status_code=500)
+        return {"error": "Webhook processing failed"}, 500
