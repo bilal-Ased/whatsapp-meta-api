@@ -1,26 +1,39 @@
-import httpx
-import logging
-import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import json
+import logging
+import httpx
+import os
 
 app = FastAPI()
 
 # Load environment variables
 VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "123456")
-GRAPH_API_TOKEN = os.getenv("GRAPH_API_TOKEN", "EAAPscODv25cBO9wHI2sB0XnMh15iln7W4hWzPwY3GozzzHMytsjTKp7o9ZAuVDVf3hZCuXNLt7WVlv5RNCYoSHnw8UFu1AYPISwpD36lBPhHjROrX3h6OSolrbWd9PAyOWqt2LYrAoZBFXnzY8Qh3NH1op6j46bNtjYjUAH3gqaMrx8RZCWOpDh2NZC87r2ZBpjAZDZD")
+GRAPH_API_TOKEN = os.getenv("GRAPH_API_TOKEN", "YOUR_ACCESS_TOKEN_HERE")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
+@app.get("/webhook")
+async def verify_webhook(
+    hub_mode: str = None,
+    hub_challenge: str = None,
+    hub_verify_token: str = None
+):
+    """Handles Meta Webhook Verification."""
+    if hub_mode == "subscribe" and hub_verify_token == VERIFY_TOKEN:
+        logging.info("✅ Webhook verified successfully!")
+        return JSONResponse(content=hub_challenge)
+    return JSONResponse(content={"error": "Invalid verification token"}, status_code=403)
+
 @app.post("/webhook")
 async def receive_message(request: Request):
-    """Handles incoming WhatsApp messages from Meta."""
+    """Handles incoming WhatsApp messages."""
     try:
         data = await request.json()
         logging.info(f"📩 Received Webhook Data:\n{json.dumps(data, indent=2)}")
 
+        # Extract message details
         entry = data.get("entry", [{}])[0]
         changes = entry.get("changes", [{}])[0]
         value = changes.get("value", {})
@@ -39,7 +52,7 @@ async def receive_message(request: Request):
 
                 if business_phone_number_id:
                     async with httpx.AsyncClient() as client:
-                        response = await client.post(
+                        await client.post(
                             f"https://graph.facebook.com/v18.0/{business_phone_number_id}/messages",
                             headers={"Authorization": f"Bearer {GRAPH_API_TOKEN}"},
                             json={
@@ -50,12 +63,8 @@ async def receive_message(request: Request):
                             },
                         )
 
-                        # Log full API response
-                        logging.info(f"🚀 Meta API Response: {response.status_code}")
-                        logging.info(f"📄 Response Body: {response.text}")
-
-        return {"status": "received"}
+        return JSONResponse(content={"status": "received"}, status_code=200)
 
     except Exception as e:
         logging.error(f"❌ Error processing webhook: {str(e)}")
-        return {"error": "Webhook processing failed"}, 500
+        return JSONResponse(content={"error": "Webhook processing failed"}, status_code=500)
