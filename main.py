@@ -9,7 +9,7 @@ app = FastAPI()
 # Load environment variables (make sure you set these in your environment!)
 import os
 VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "123456")
-GRAPH_API_TOKEN = os.getenv("GRAPH_API_TOKEN", "YOUR_ACCESS_TOKEN_HERE")
+GRAPH_API_TOKEN = os.getenv("GRAPH_API_TOKEN", "EAAPscODv25cBO9wHI2sB0XnMh15iln7W4hWzPwY3GozzzHMytsjTKp7o9ZAuVDVf3hZCuXNLt7WVlv5RNCYoSHnw8UFu1AYPISwpD36lBPhHjROrX3h6OSolrbWd9PAyOWqt2LYrAoZBFXnzY8Qh3NH1op6j46bNtjYjUAH3gqaMrx8RZCWOpDh2NZC87r2ZBpjAZDZD")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
